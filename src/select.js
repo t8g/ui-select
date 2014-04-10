@@ -199,6 +199,18 @@ angular.module('ui.select', [])
     if (ctrl.open) {
       _resetSearchInput();
       ctrl.open = false;
+
+      // Give the button element time to appear again before returning focus to it
+      // See Looses field focus after selecting an entry https://github.com/angular-ui/ui-select/issues/46
+      $timeout(function() {
+        // Cannot search for .ui-select-match when the controller is created
+        // since transclusion happens after
+        var selectButton = $element.querySelectorAll('.ui-select-match');
+        if (selectButton.length !== 1) {
+          throw uiSelectMinErr('selectButton', "Expected 1 .ui-select-match but got '{0}'.", selectButton.length);
+        }
+        selectButton[0].focus();
+      });
     }
   };
 

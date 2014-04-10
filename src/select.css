@@ -55,3 +55,12 @@
   max-height: 200px;
   overflow-x: hidden;
 }
+
+.ui-select-bootstrap > .form-control {
+  /*
+    Remove Bootstrap animation to avoid losing focus on the search input
+    See Looses field focus after selecting an entry https://github.com/angular-ui/ui-select/issues/46
+  */
+  -webkit-transition: none;
+          transition: none;
+}
