@@ -99,8 +99,8 @@ angular.module('ui.select', [])
  * put as much logic in the controller (instead of the link functions) as possible so it can be easily tested.
  */
 .controller('uiSelectCtrl',
-  ['$scope', '$element', '$timeout', 'RepeatParser', 'uiSelectMinErr',
-  function($scope, $element, $timeout, RepeatParser, uiSelectMinErr) {
+  ['$scope', '$element', '$timeout', '$document', 'RepeatParser', 'uiSelectMinErr',
+  function($scope, $element, $timeout, $document, RepeatParser, uiSelectMinErr) {
 
   var ctrl = this;
 
@@ -190,29 +190,34 @@ angular.module('ui.select', [])
   // When the user clicks on an item inside the dropdown
   ctrl.select = function(item) {
     ctrl.selected = item;
-    ctrl.close();
+    _close(CLOSE_REASON_INTERNAL);
     // Using a watch instead of $scope.ngModel.$setViewValue(item)
   };
 
+  var CLOSE_REASON_INTERNAL = 'Internal';
+  var CLOSE_REASON_EXTERNAL = 'External';
+
   // Closes the dropdown
-  ctrl.close = function() {
+  function _close(reason) {
     if (ctrl.open) {
       _resetSearchInput();
       ctrl.open = false;
 
-      // Give the button element time to appear again before returning focus to it
-      // See Looses field focus after selecting an entry https://github.com/angular-ui/ui-select/issues/46
-      $timeout(function() {
-        // Cannot search for .ui-select-match when the controller is created
-        // since transclusion happens after
-        var selectButton = $element.querySelectorAll('.ui-select-match');
-        if (selectButton.length !== 1) {
-          throw uiSelectMinErr('selectButton', "Expected 1 .ui-select-match but got '{0}'.", selectButton.length);
-        }
-        selectButton[0].focus();
-      });
+      if (reason === CLOSE_REASON_INTERNAL) {
+        // Give the button element time to appear again before returning focus to it
+        // See Looses field focus after selecting an entry https://github.com/angular-ui/ui-select/issues/46
+        $timeout(function() {
+          // Cannot search for .ui-select-match when the controller is created
+          // since transclusion happens after
+          var selectButton = $element.querySelectorAll('.ui-select-match');
+          if (selectButton.length !== 1) {
+            throw uiSelectMinErr('selectButton', "Expected 1 .ui-select-match but got '{0}'.", selectButton.length);
+          }
+          selectButton[0].focus();
+        });
+      }
     }
-  };
+  }
 
   var Key = {
     Enter: 13,
@@ -236,7 +241,7 @@ angular.module('ui.select', [])
         ctrl.select(ctrl.items[ctrl.activeIndex]);
         break;
       case Key.Escape:
-        ctrl.close();
+        _close(CLOSE_REASON_INTERNAL);
         break;
       default:
         processed = false;
@@ -288,15 +293,33 @@ angular.module('ui.select', [])
     }
   }
 
+  function _onDocumentClick(e) {
+    var contains = false;
+
+    if (window.jQuery) {
+      // Firefox 3.6 does not support element.contains()
+      // See Node.contains https://developer.mozilla.org/en-US/docs/Web/API/Node.contains
+      contains = window.jQuery.contains($element[0], e.target);
+    } else {
+      contains = $element[0].contains(e.target);
+    }
+
+    if (!contains) {
+      _close(CLOSE_REASON_EXTERNAL);
+      $scope.$digest();
+    }
+  }
+
+  // See Click everywhere but here event http://stackoverflow.com/questions/12931369
+  $document.on('click', _onDocumentClick);
+
   $scope.$on('$destroy', function() {
     _searchInput.off('keydown');
+    $document.off('click', _onDocumentClick);
   });
 }])
 
-.directive('uiSelect',
-  ['$document', 'uiSelectConfig',
-  function($document, uiSelectConfig) {
-
+.directive('uiSelect', ['uiSelectConfig', function(uiSelectConfig) {
   return {
     restrict: 'EA',
     templateUrl: function(tElement, tAttrs) {
@@ -335,28 +358,6 @@ angular.module('ui.select', [])
       ngModel.$render = function() {
         $select.selected = ngModel.$viewValue;
       };
-
-      // See Click everywhere but here event http://stackoverflow.com/questions/12931369
-      $document.on('mousedown', function(e) {
-        var contains = false;
-
-        if (window.jQuery) {
-          // Firefox 3.6 does not support element.contains()
-          // See Node.contains https://developer.mozilla.org/en-US/docs/Web/API/Node.contains
-          contains = window.jQuery.contains(element[0], e.target);
-        } else {
-          contains = element[0].contains(e.target);
-        }
-
-        if (!contains) {
-          $select.close();
-          scope.$digest();
-        }
-      });
-
-      scope.$on('$destroy', function() {
-        $document.off('mousedown');
-      });
 
       // Move transcluded elements to their correct position in main template
       transcludeFn(scope, function(clone) {
